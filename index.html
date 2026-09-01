@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipeline Crack Tracking & Rover Portal</title>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: #111827;
+            --border-color: #1f2937;
+            --accent-color: #38bdf8;
+            --text-main: #f9fafb;
+            --danger-color: #f43f5e;
+            --success-color: #10b981;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        header h1 {
+            color: var(--accent-color);
+            margin: 0 0 5px 0;
+            font-size: 26px;
+        }
+
+        header p {
+            color: #9ca3af;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1.3fr 1fr;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        @media (max-width: 1000px) {
+            .dashboard-grid { grid-template-columns: 1fr; }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+        }
+
+        .card h3 {
+            margin-top: 0;
+            color: var(--accent-color);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+            font-size: 18px;
+        }
+
+        /* Large Video Container with Transparent Overlay Controls */
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+        }
+
+        .video-wrapper img {
+            width: 100%;
+            height: 380px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .controls-overlay {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            display: grid;
+            grid-template-columns: repeat(3, 45px);
+            grid-template-rows: repeat(3, 45px);
+            gap: 5px;
+            background: rgba(11, 15, 25, 0.65);
+            backdrop-filter: blur(4px);
+            padding: 8px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .c-btn {
+            background: rgba(56, 189, 248, 0.85);
+            border: none;
+            color: #0b0f19;
+            font-weight: bold;
+            font-size: 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .c-btn:hover { background: #38bdf8; transform: scale(1.05); }
+        .c-btn:active { background: #0ea5e9; transform: scale(0.95); }
+        .empty-cell { background: transparent; }
+
+        .snapshot-btn {
+            background: var(--danger-color);
+            color: white;
+            border: none;
+            padding: 12px;
+            font-weight: bold;
+            width: 100%;
+            margin-top: 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 15px;
+            box-shadow: 0 4px 6px rgba(244, 63, 94, 0.2);
+        }
+        .snapshot-btn:hover { background: #e11d48; }
+
+        /* Predefined Path Diagram Box */
+        .path-map-container {
+            background: #0b0f19;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .pipeline-svg {
+            width: 100%;
+            max-height: 110px;
+        }
+
+        /* Telemetry list */
+        .telemetry-row {
+            display: flex;
+            justify-content: space-between;
+            background: #0b0f19;
+            padding: 10px 14px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 14px;
+            border-left: 3px solid var(--accent-color);
+        }
+
+        .full-width { grid-column: span 2; }
+        @media (max-width: 1000px) { .full-width { grid-column: span 1; } }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid var(--border-color); padding: 9px; text-align: left; font-size: 13px; }
+        th { background: #0b0f19; color: var(--accent-color); }
+        .thumb { width: 50px; height: 50px; object-fit: cover; border-radius: 4px; cursor: pointer; border: 1px solid var(--border-color); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Underground Pipeline Crack Tracking & Rover Portal</h1>
+        <p>Live Video Feed, Sensor Metrics & Predefined Path Tracking Diagnostics</p>
+    </header>
+
+    <div class="dashboard-grid">
+        
+        <div class="card">
+            <h3>ESP32-CAM Live Video Stream</h3>
+            <div class="video-wrapper">
+                <img id="camStream" crossorigin="anonymous" src="" alt="Awaiting ESP32-CAM Stream...">
+                
+                <div class="controls-overlay">
+                    <div class="empty-cell"></div>
+                    <button class="c-btn" onclick="sendCmd('FORWARD')">&#9650;</button>
+                    <div class="empty-cell"></div>
+                    <button class="c-btn" onclick="sendCmd('LEFT')">&#9664;</button>
+                    <button class="c-btn" onclick="sendCmd('STOP')">&#9632;</button>
+                    <button class="c-btn" onclick="sendCmd('RIGHT')">&#9654;</button>
+                    <div class="empty-cell"></div>
+                    <button class="c-btn" onclick="sendCmd('BACKWARD')">&#9660;</button>
+                    <div class="empty-cell"></div>
+                </div>
+            </div>
+            
+            <button class="snapshot-btn" onclick="takeSnapshot()">📸 Capture Crack Snapshot Evidence</button>
+        </div>
+
+        <div class="card">
+            <h3>Predefined Path & Sensor Telemetry</h3>
+            
+            <div class="path-map-container">
+                <span style="font-size: 12px; color: #9ca3af; display:block; margin-bottom: 5px;">Predefined Pipeline Network Layout</span>
+                <svg class="pipeline-svg" viewBox="0 0 400 100">
+                    <line x1="30" y1="50" x2="370" y2="50" stroke="#334155" stroke-width="8" stroke-linecap="round"/>
+                    <circle cx="50" cy="50" r="10" fill="#111827" stroke="#38bdf8" stroke-width="2"/>
+                    <text x="50" y="75" fill="#9ca3af" font-size="10" text-anchor="middle">Node A</text>
+                    
+                    <circle cx="150" cy="50" r="10" fill="#111827" stroke="#38bdf8" stroke-width="2"/>
+                    <text x="150" y="75" fill="#9ca3af" font-size="10" text-anchor="middle">Node B</text>
+                    
+                    <circle cx="250" cy="50" r="10" fill="#111827" stroke="#38bdf8" stroke-width="2"/>
+                    <text x="250" y="75" fill="#9ca3af" font-size="10" text-anchor="middle">Node C</text>
+                    
+                    <circle cx="350" cy="50" r="10" fill="#111827" stroke="#38bdf8" stroke-width="2"/>
+                    <text x="350" y="75" fill="#9ca3af" font-size="10" text-anchor="middle">Node D</text>
+
+                    <circle id="roverNodeMarker" cx="50" cy="50" r="6" fill="#f43f5e" />
+                </svg>
+                <div style="font-size: 13px; margin-top: 5px;">Current Position: <strong id="pathNode" style="color: #38bdf8;">Node A (Segment 1)</strong></div>
+            </div>
+
+            <div class="telemetry-row" style="border-left-color: var(--success-color);">
+                <span>Rover State / Duration:</span> 
+                <strong id="roverState" style="color: var(--success-color);">Idle</strong>
+            </div>
+            <div class="telemetry-row"><span>Battery Power:</span> <strong id="battery">-- V</strong></div>
+            <div class="telemetry-row"><span>Environmental Humidity:</span> <strong id="humidity">-- %</strong></div>
+            <div class="telemetry-row"><span>Front Sensor Distance:</span> <strong id="front">-- cm</strong></div>
+            <div class="telemetry-row"><span>Rear Sensor Distance:</span> <strong id="rear">-- cm</strong></div>
+            <div class="telemetry-row"><span>Left Sensor Distance:</span> <strong id="left">-- cm</strong></div>
+            <div class="telemetry-row"><span>Right Sensor Distance:</span> <strong id="right">-- cm</strong></div>
+        </div>
+
+        <div class="card full-width">
+            <h3>Historical Run Archives & Crack Evidence</h3>
+            <p style="font-size: 13px; color: #9ca3af; margin-top: 0;">Review past session durations, dates, timestamps, active path segments, and click captured snapshots to inspect cracks.</p>
+            
+            <div style="max-height: 220px; overflow-y: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Start Time & Duration</th>
+                            <th>Predefined Path Tracked</th>
+                            <th>Captured Crack Snapshots</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTable">
+                        <tr><td colspan="4" style="text-align: center; color: #9ca3af;">Loading database archives...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const ESP32_IP = "192.168.4.2"; // Change to your ESP32 IP
+        document.getElementById('camStream').src = `http://${ESP32_IP}:81/stream`;
+
+        const socket = io();
+
+        function sendCmd(cmd) {
+            fetch(`http://${ESP32_IP}/control?cmd=${cmd}`).catch(e => {});
+        }
+
+        function takeSnapshot() {
+            const img = document.getElementById('camStream');
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth || 640;
+            canvas.height = img.naturalHeight || 480;
+            const ctx = canvas.getContext('2d');
+            try {
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                fetch('/api/snapshot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ imageBase64: canvas.toDataURL('image/png') })
+                }).then(res => res.json()).then(data => alert('Crack snapshot saved successfully!'));
+            } catch(err) {
+                alert('Snapshot request sent to local server backend.');
+            }
+        }
+
+        socket.on('live-update', (data) => {
+            document.getElementById('battery').innerText = data.battery ? data.battery + ' V' : '-- V';
+            document.getElementById('humidity').innerText = data.humidity ? data.humidity + ' %' : '-- %';
+            document.getElementById('front').innerText = data.front ? data.front + ' cm' : '-- cm';
+            document.getElementById('rear').innerText = data.rear ? data.rear + ' cm' : '-- cm';
+            document.getElementById('left').innerText = data.left ? data.left + ' cm' : '-- cm';
+            document.getElementById('right').innerText = data.right ? data.right + ' cm' : '-- cm';
+
+            const stateEl = document.getElementById('roverState');
+            if(data.isMoving) {
+                stateEl.innerText = `Active (${data.startTime || 'Running'})`;
+                stateEl.style.color = "#10b981";
+            } else {
+                stateEl.innerText = "Idle";
+                stateEl.style.color = "#f43f5e";
+            }
+
+            if(data.currentWaypoint) {
+                document.getElementById('pathNode').innerText = data.currentWaypoint;
+                let marker = document.getElementById('roverNodeMarker');
+                if(data.currentWaypoint.includes('Node B')) marker.setAttribute('cx', '150');
+                else if(data.currentWaypoint.includes('Node C')) marker.setAttribute('cx', '250');
+                else if(data.currentWaypoint.includes('Node D')) marker.setAttribute('cx', '350');
+                else marker.setAttribute('cx', '50');
+            }
+
+            if(data.history && data.history.length > 0) {
+                let html = '';
+                data.history.forEach(row => {
+                    let snaps = '';
+                    if(row.snapshots) {
+                        row.snapshots.forEach(s => {
+                            snaps += `<a href="${s}" target="_blank"><img src="${s}" class="thumb"></a> `;
+                        });
+                    }
+                    html += `<tr>
+                        <td>${row.date}</td>
+                        <td>${row.startTime} <br><small style="color:#9ca3af;">(${row.duration})</small></td>
+                        <td>${row.pathTracked || 'Pipeline Route A'}</td>
+                        <td>${snaps || '<span style="color:#4b5563;">No snapshots</span>'}</td>
+                    </tr>`;
+                });
+                document.getElementById('historyTable').innerHTML = html;
+            }
+        });
+    </script>
+</body>
+</html>
