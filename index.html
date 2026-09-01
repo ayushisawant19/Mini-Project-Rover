@@ -37,7 +37,37 @@
         header p {
             color: #9ca3af;
             font-size: 14px;
-            margin: 0;
+            margin: 0 0 15px 0;
+        }
+
+        .ip-bar {
+            display: inline-flex;
+            gap: 10px;
+            background: var(--card-bg);
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            align-items: center;
+            font-size: 13px;
+        }
+
+        .ip-bar input {
+            background: #0b0f19;
+            border: 1px solid var(--border-color);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            width: 130px;
+        }
+
+        .ip-bar button {
+            background: var(--accent-color);
+            border: none;
+            color: #0b0f19;
+            font-weight: bold;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
         }
 
         .dashboard-grid {
@@ -45,7 +75,7 @@
             grid-template-columns: 1.3fr 1fr;
             gap: 20px;
             max-width: 1400px;
-            margin: 0 auto;
+            margin: 20px auto 0 auto;
         }
 
         @media (max-width: 1000px) {
@@ -68,7 +98,6 @@
             font-size: 18px;
         }
 
-        /* Large Video Container with Transparent Overlay Controls */
         .video-wrapper {
             position: relative;
             width: 100%;
@@ -77,6 +106,10 @@
             overflow: hidden;
             border: 1px solid var(--border-color);
             box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+            min-height: 380px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .video-wrapper img {
@@ -134,7 +167,6 @@
         }
         .snapshot-btn:hover { background: #e11d48; }
 
-        /* Predefined Path Diagram Box */
         .path-map-container {
             background: #0b0f19;
             border: 1px solid var(--border-color);
@@ -149,7 +181,6 @@
             max-height: 110px;
         }
 
-        /* Telemetry list */
         .telemetry-row {
             display: flex;
             justify-content: space-between;
@@ -175,6 +206,11 @@
     <header>
         <h1>Underground Pipeline Crack Tracking & Rover Portal</h1>
         <p>Live Video Feed, Sensor Metrics & Predefined Path Tracking Diagnostics</p>
+        <div class="ip-bar">
+            <label for="espIpInput">ESP32 IP:</label>
+            <input type="text" id="espIpInput" value="192.168.4.2" placeholder="e.g. 192.168.4.2">
+            <button onclick="updateEspIp()">Connect Stream</button>
+        </div>
     </header>
 
     <div class="dashboard-grid">
@@ -182,7 +218,7 @@
         <div class="card">
             <h3>ESP32-CAM Live Video Stream</h3>
             <div class="video-wrapper">
-                <img id="camStream" crossorigin="anonymous" src="" alt="Awaiting ESP32-CAM Stream...">
+                <img id="camStream" alt="Awaiting ESP32-CAM Stream..." onerror="this.alt='Camera stream offline or unreachable at current IP.'">
                 
                 <div class="controls-overlay">
                     <div class="empty-cell"></div>
@@ -251,7 +287,7 @@
                         </tr>
                     </thead>
                     <tbody id="historyTable">
-                        <tr><td colspan="4" style="text-align: center; color: #9ca3af;">Loading database archives...</td></tr>
+                        <tr><td colspan="4" style="text-align: center; color: #9ca3af;">Awaiting telemetry data...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -261,13 +297,25 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const ESP32_IP = "192.168.4.2"; // Change to your ESP32 IP
-        document.getElementById('camStream').src = `http://${ESP32_IP}:81/stream`;
+        let ESP32_IP = document.getElementById('espIpInput').value.trim();
 
+        function updateEspIp() {
+            ESP32_IP = document.getElementById('espIpInput').value.trim();
+            const camEl = document.getElementById('camStream');
+            camEl.src = `http://${ESP32_IP}:81/stream`;
+        }
+
+        // Initialize default IP stream
+        updateEspIp();
+
+        // Connects to the host server running Express + Socket.IO
         const socket = io();
 
         function sendCmd(cmd) {
-            fetch(`http://${ESP32_IP}/control?cmd=${cmd}`).catch(e => {});
+            // Sends control command directly to local ESP32 IP
+            fetch(`http://${ESP32_IP}/control?cmd=${cmd}`, { mode: 'no-cors' }).catch(err => {
+                console.warn('Direct command failed, check network connectivity:', err);
+            });
         }
 
         function takeSnapshot() {
@@ -276,19 +324,28 @@
             canvas.width = img.naturalWidth || 640;
             canvas.height = img.naturalHeight || 480;
             const ctx = canvas.getContext('2d');
+
             try {
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const base64Data = canvas.toDataURL('image/png');
+                
                 fetch('/api/snapshot', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ imageBase64: canvas.toDataURL('image/png') })
-                }).then(res => res.json()).then(data => alert('Crack snapshot saved successfully!'));
+                    body: JSON.stringify({ imageBase64: base64Data })
+                })
+                .then(res => res.json())
+                .then(data => alert('Crack snapshot saved successfully!'))
+                .catch(err => alert('Snapshot captured locally, error saving to database.'));
             } catch(err) {
-                alert('Snapshot request sent to local server backend.');
+                // Catches browser CORS security blocks on cross-origin canvas reading
+                alert('Cross-Origin security prevented client-side capture. Ensure your ESP32 allows CORS or proxy snapshots via backend.');
             }
         }
 
         socket.on('live-update', (data) => {
+            if(!data) return;
+
             document.getElementById('battery').innerText = data.battery ? data.battery + ' V' : '-- V';
             document.getElementById('humidity').innerText = data.humidity ? data.humidity + ' %' : '-- %';
             document.getElementById('front').innerText = data.front ? data.front + ' cm' : '-- cm';
@@ -318,14 +375,14 @@
                 let html = '';
                 data.history.forEach(row => {
                     let snaps = '';
-                    if(row.snapshots) {
+                    if(row.snapshots && Array.isArray(row.snapshots)) {
                         row.snapshots.forEach(s => {
                             snaps += `<a href="${s}" target="_blank"><img src="${s}" class="thumb"></a> `;
                         });
                     }
                     html += `<tr>
-                        <td>${row.date}</td>
-                        <td>${row.startTime} <br><small style="color:#9ca3af;">(${row.duration})</small></td>
+                        <td>${row.date || '--'}</td>
+                        <td>${row.startTime || '--'} <br><small style="color:#9ca3af;">(${row.duration || '0m'})</small></td>
                         <td>${row.pathTracked || 'Pipeline Route A'}</td>
                         <td>${snaps || '<span style="color:#4b5563;">No snapshots</span>'}</td>
                     </tr>`;
